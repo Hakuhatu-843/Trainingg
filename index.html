@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TO BE AN ACE - VB TRAINING</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@900&display=swap" rel="stylesheet">
+    <style>
+        :root { --accent: #00ff41; --bg: #000; }
+        
+        body {
+            background: var(--bg); color: #fff;
+            margin: 0; overflow: hidden; height: 100vh;
+            text-transform: uppercase; touch-action: manipulation;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* --- 究極・黒緑グラデーション数字（最前面） --- */
+        .hack-digit {
+            position: fixed; font-weight: 900; z-index: 999;
+            font-size: 14px; pointer-events: none;
+            background: linear-gradient(180deg, #000 0%, #004411 40%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 1px var(--accent));
+        }
+        
+        @keyframes hack-fly {
+            0% { opacity: 0; transform: translateY(-30px); }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { opacity: 0; transform: translate(var(--mx), var(--my)); }
+        }
+
+        /* --- UI --- */
+        #ui-root, #training-overlay { 
+            position: relative; z-index: 100; height: 100vh; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+        }
+        
+        .logo { 
+            font-size: 1.6rem; letter-spacing: 8px; color: var(--accent); 
+            margin-bottom: 30px; text-shadow: 0 0 15px var(--accent);
+            text-align: center;
+        }
+
+        .streak-container { display: flex; gap: 6px; margin-bottom: 40px; }
+        .streak-box { width: 48px; height: 65px; background: rgba(0,0,0,0.9); border: 1.5px solid #1a1a1a; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .streak-box.active { border-color: var(--accent); box-shadow: 0 0 15px rgba(0, 255, 65, 0.3); }
+        .streak-box .num { font-size: 1.1rem; color: #111; }
+        .streak-box.active .num { color: var(--accent); }
+
+        /* --- タイマー（以前のフォントを適用・サイズ調整） --- */
+        #timerDisplay { 
+            font-family: 'Consolas', 'Courier New', monospace; /* 前のフォント */
+            font-size: 20vw; /* 少し小さく */
+            font-weight: 900; line-height: 1; color: #fff;
+            text-shadow: 0 0 20px var(--accent); 
+            margin: 10px 0; font-variant-numeric: tabular-nums;
+        }
+        
+        #taskMain { font-size: 12px; letter-spacing: 6px; color: var(--accent); font-family: 'Orbitron', sans-serif; }
+        #taskSub { font-size: 1.2rem; font-weight: 900; color: #fff; margin-top: 5px; text-align: center; }
+
+        .btn-group { display: flex; gap: 12px; width: 88%; margin-top: 45px; }
+        .btn-tr { flex: 1; padding: 20px 0; background: rgba(0,0,0,0.9); border: 2px solid var(--accent); color: var(--accent); font-weight: 900; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; }
+        .big-start-btn { width: 88%; padding: 25px; background: rgba(0,0,0,0.9); border: 2px solid var(--accent); color: var(--accent); font-weight: 900; letter-spacing: 5px; font-family: 'Orbitron', sans-serif; font-size: 1rem; }
+    </style>
+</head>
+<body>
+
+<div id="ui-root">
+    <div class="logo">TO BE AN ACE</div>
+    <div id="streakView" class="streak-container"></div>
+    <button id="startBtn" class="big-start-btn" onclick="startTraining()">INITIALIZE_SESSION</button>
+</div>
+
+<div id="training-overlay" style="display:none;">
+    <div id="taskMain">PHASE_STATUS</div>
+    <div id="taskSub">LOADING...</div>
+    <div id="timerDisplay">00:00</div>
+    <div class="btn-group">
+        <button id="pauseBtn" class="btn-tr" onclick="togglePause()">PAUSE</button>
+        <button class="btn-tr" onclick="quitTraining()">ABORT</button>
+    </div>
+</div>
+
+<script>
+let state = JSON.parse(localStorage.getItem("EGO_VB_ACE")) || { streak: 0, last: "" };
+let timer, hackInt, isPaused = false, sec = 0, tIdx = 0;
+
+const tasks = [
+    ["WARM_UP", "足首回し (左右)", 40],
+    ["WARM_UP", "その場軽ジャンプ S1", 20],
+    ["REST", "インターバル", 20],
+    ["WARM_UP", "その場軽ジャンプ S2", 20],
+    ["WARM_UP", "腕回し (前後)", 30],
+    ["JUMP_TRAIN", "スクワット S1", 36],
+    ["REST", "インターバル", 40],
+    ["JUMP_TRAIN", "スクワット S2", 36],
+    ["REST", "インターバル", 40],
+    ["JUMP_TRAIN", "スクワット S3", 36],
+    ["REST", "インターバル", 40],
+    ["JUMP_TRAIN", "ジャンプスクワット S1", 20],
+    ["REST", "インターバル", 60],
+    ["JUMP_TRAIN", "ジャンプスクワット S2", 20],
+    ["REST", "インターバル", 60],
+    ["JUMP_TRAIN", "ジャンプスクワット S3", 20],
+    ["REST", "インターバル", 60],
+    ["JUMP_TRAIN", "カーフレイズ S1", 40],
+    ["REST", "インターバル", 30],
+    ["JUMP_TRAIN", "カーフレイズ S2", 40],
+    ["REST", "インターバル", 30],
+    ["CORE_POWER", "プランク S1", 25],
+    ["REST", "インターバル", 30],
+    ["CORE_POWER", "プランク S2", 25],
+    ["REST", "インターバル", 30],
+    ["CORE_POWER", "プランク S3", 25],
+    ["REST", "インターバル", 30],
+    ["CORE_POWER", "腕振りジャンプ S1", 25],
+    ["REST", "インターバル", 45],
+    ["CORE_POWER", "腕振りジャンプ S2", 25],
+    ["REST", "インターバル", 45],
+    ["CORE_POWER", "腕振りジャンプ S3", 25],
+    ["REST", "インターバル", 45],
+    ["COOL_DOWN", "太もも前ストレッチ", 40],
+    ["COOL_DOWN", "もも裏ストレッチ", 40],
+    ["COOL_DOWN", "ふくらはぎストレッチ", 40],
+    ["COOL_DOWN", "肩ストレッチ", 30]
+];
+
+function save() { localStorage.setItem("EGO_VB_ACE", JSON.stringify(state)); }
+
+function renderStreak() {
+    const container = document.getElementById("streakView");
+    container.innerHTML = "";
+    const startNum = Math.floor(state.streak / 5) * 5 + 1;
+    for(let i = startNum; i < startNum + 5; i++) {
+        container.innerHTML += `<div class="streak-box ${i <= state.streak ? 'active' : ''}"><div class="num">${i}</div><div class="label">DAY</div></div>`;
+    }
+    if(state.last === new Date().toDateString()) {
+        const btn = document.getElementById("startBtn");
+        btn.disabled = true; btn.innerText = "LOCKED"; btn.style.opacity = "0.2";
+    }
+}
+
+function startTraining() {
+    document.getElementById("ui-root").style.display = "none";
+    document.getElementById("training-overlay").style.display = "flex";
+    tIdx = 0; isPaused = false;
+    if(hackInt) clearInterval(hackInt);
+    hackInt = setInterval(createDigit, 40); 
+    nextTask();
+}
+
+function createDigit() {
+    if(isPaused) return;
+    const d = document.createElement("div");
+    d.className = "hack-digit";
+    d.innerText = Math.random() > 0.5 ? "1" : "0";
+    d.style.left = Math.random() * 100 + "vw";
+    d.style.top = Math.random() * 100 + "vh";
+    d.style.setProperty('--mx', (Math.random() - 0.5) * 500 + "px");
+    d.style.setProperty('--my', (Math.random() - 0.5) * 500 + "px");
+    d.style.animation = "hack-fly 1.2s ease-in-out forwards";
+    document.body.appendChild(d);
+    setTimeout(() => d.remove(), 1200);
+}
+
+function nextTask() {
+    if(tIdx >= tasks.length) return end();
+    document.getElementById("taskMain").innerText = tasks[tIdx][0];
+    document.getElementById("taskSub").innerText = tasks[tIdx][1];
+    sec = tasks[tIdx][2];
+    runTimer();
+}
+
+function runTimer() {
+    clearInterval(timer);
+    timer = setInterval(() => {
+        if(!isPaused) {
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            document.getElementById("timerDisplay").innerText = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+            if(sec-- <= 0) { tIdx++; nextTask(); }
+        }
+    }, 1000);
+}
+
+function togglePause() {
+    isPaused = !isPaused;
+    document.getElementById("pauseBtn").innerText = isPaused ? "RESUME" : "PAUSE";
+}
+
+function quitTraining() { if(confirm("ABORT?")) location.reload(); }
+
+function end() {
+    clearInterval(timer); clearInterval(hackInt);
+    state.streak++; state.last = new Date().toDateString(); save();
+    alert("TRAINING COMPLETE. ROAD TO ACE."); location.reload();
+}
+
+renderStreak();
+</script>
+</body>
+</html>
+
