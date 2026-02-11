@@ -19,6 +19,7 @@
         .hack-digit {
             position: fixed; font-weight: 900; z-index: 999;
             font-size: 14px; pointer-events: none;
+            font-family: 'Consolas', 'Courier New', monospace;
             background: linear-gradient(180deg, #000 0%, #004411 40%, var(--accent) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -26,7 +27,7 @@
         }
         
         @keyframes hack-fly {
-            0% { opacity: 0; transform: translateY(-30px); }
+            0% { opacity: 0; transform: scale(1.2); }
             20% { opacity: 1; }
             80% { opacity: 1; }
             100% { opacity: 0; transform: translate(var(--mx), var(--my)); }
@@ -50,10 +51,10 @@
         .streak-box .num { font-size: 1.1rem; color: #111; }
         .streak-box.active .num { color: var(--accent); }
 
-        /* --- タイマー（以前のフォントを適用・サイズ調整） --- */
+        /* --- タイマー --- */
         #timerDisplay { 
-            font-family: 'Consolas', 'Courier New', monospace; /* 前のフォント */
-            font-size: 20vw; /* 少し小さく */
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 20vw;
             font-weight: 900; line-height: 1; color: #fff;
             text-shadow: 0 0 20px var(--accent); 
             margin: 10px 0; font-variant-numeric: tabular-nums;
@@ -62,8 +63,9 @@
         #taskMain { font-size: 12px; letter-spacing: 6px; color: var(--accent); font-family: 'Orbitron', sans-serif; }
         #taskSub { font-size: 1.2rem; font-weight: 900; color: #fff; margin-top: 5px; text-align: center; }
 
-        .btn-group { display: flex; gap: 12px; width: 88%; margin-top: 45px; }
-        .btn-tr { flex: 1; padding: 20px 0; background: rgba(0,0,0,0.9); border: 2px solid var(--accent); color: var(--accent); font-weight: 900; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; }
+        .btn-group { display: flex; flex-wrap: wrap; gap: 12px; width: 88%; margin-top: 45px; justify-content: center; }
+        .btn-tr { flex: 1 1 40%; padding: 20px 0; background: rgba(0,0,0,0.9); border: 2px solid var(--accent); color: var(--accent); font-weight: 900; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; }
+        #skipBtn { flex: 1 1 100%; display: none; }
         .big-start-btn { width: 88%; padding: 25px; background: rgba(0,0,0,0.9); border: 2px solid var(--accent); color: var(--accent); font-weight: 900; letter-spacing: 5px; font-family: 'Orbitron', sans-serif; font-size: 1rem; }
     </style>
 </head>
@@ -82,10 +84,12 @@
     <div class="btn-group">
         <button id="pauseBtn" class="btn-tr" onclick="togglePause()">PAUSE</button>
         <button class="btn-tr" onclick="quitTraining()">ABORT</button>
+        <button id="skipBtn" class="btn-tr" onclick="skipTask()">SKIP_REST</button>
     </div>
 </div>
 
 <script>
+// キー名を「EGO_VB_ACE」に統一して記録を復元
 let state = JSON.parse(localStorage.getItem("EGO_VB_ACE")) || { streak: 0, last: "" };
 let timer, hackInt, isPaused = false, sec = 0, tIdx = 0;
 
@@ -149,7 +153,11 @@ function startTraining() {
     document.getElementById("training-overlay").style.display = "flex";
     tIdx = 0; isPaused = false;
     if(hackInt) clearInterval(hackInt);
-    hackInt = setInterval(createDigit, 40); 
+    // 100msごとに2つ生成
+    hackInt = setInterval(() => {
+        createDigit();
+        createDigit();
+    }, 100); 
     nextTask();
 }
 
@@ -157,22 +165,48 @@ function createDigit() {
     if(isPaused) return;
     const d = document.createElement("div");
     d.className = "hack-digit";
-    d.innerText = Math.random() > 0.5 ? "1" : "0";
-    d.style.left = Math.random() * 100 + "vw";
-    d.style.top = Math.random() * 100 + "vh";
-    d.style.setProperty('--mx', (Math.random() - 0.5) * 500 + "px");
-    d.style.setProperty('--my', (Math.random() - 0.5) * 500 + "px");
-    d.style.animation = "hack-fly 1.2s ease-in-out forwards";
+    
+    let val = "";
+    const len = Math.floor(Math.random() * 3) + 1;
+    for(let i=0; i<len; i++) val += Math.random() > 0.5 ? "1" : "0";
+    d.innerText = val;
+    
+    const x = Math.random() * 100;
+    const y = Math.random() * 100;
+    d.style.left = x + "vw";
+    d.style.top = y + "vh";
+
+    const dist = 400;
+    const dirs = [[dist, 0], [-dist, 0], [0, dist], [0, -dist]];
+    const picked = dirs[Math.floor(Math.random() * dirs.length)];
+    
+    d.style.setProperty('--mx', picked[0] + "px");
+    d.style.setProperty('--my', picked[1] + "px");
+    d.style.animation = "hack-fly 1.7s ease-in-out forwards";
+    
     document.body.appendChild(d);
-    setTimeout(() => d.remove(), 1200);
+    setTimeout(() => d.remove(), 1700);
 }
 
 function nextTask() {
     if(tIdx >= tasks.length) return end();
-    document.getElementById("taskMain").innerText = tasks[tIdx][0];
-    document.getElementById("taskSub").innerText = tasks[tIdx][1];
-    sec = tasks[tIdx][2];
+    const current = tasks[tIdx];
+    document.getElementById("taskMain").innerText = current[0];
+    document.getElementById("taskSub").innerText = current[1];
+    
+    const skipBtn = document.getElementById("skipBtn");
+    if(current[0].includes("REST")) {
+        skipBtn.style.display = "block";
+    } else {
+        skipBtn.style.display = "none";
+    }
+    
+    sec = current[2];
     runTimer();
+}
+
+function skipTask() {
+    sec = 0;
 }
 
 function runTimer() {
