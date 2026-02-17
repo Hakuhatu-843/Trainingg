@@ -15,7 +15,7 @@
             font-family: 'Orbitron', sans-serif;
         }
 
-        /* --- 究極・黒緑グラデーション数字（最前面） --- */
+        /* --- 究極・黒緑グラデーション数字 --- */
         .hack-digit {
             position: fixed; font-weight: 900; z-index: 999;
             font-size: 14px; pointer-events: none;
@@ -33,7 +33,6 @@
             100% { opacity: 0; transform: translate(var(--mx), var(--my)); }
         }
 
-        /* --- UI --- */
         #ui-root, #training-overlay { 
             position: relative; z-index: 100; height: 100vh; 
             display: flex; flex-direction: column; justify-content: center; align-items: center; 
@@ -51,19 +50,21 @@
         .streak-box .num { font-size: 1.1rem; color: #111; }
         .streak-box.active .num { color: var(--accent); }
 
-        /* --- タイマー --- */
         #timerDisplay { 
             font-family: 'Consolas', 'Courier New', monospace;
             font-size: 20vw;
             font-weight: 900; line-height: 1; color: #fff;
             text-shadow: 0 0 20px var(--accent); 
-            margin: 10px 0; font-variant-numeric: tabular-nums;
+            margin: 5px 0; font-variant-numeric: tabular-nums;
         }
         
         #taskMain { font-size: 12px; letter-spacing: 6px; color: var(--accent); font-family: 'Orbitron', sans-serif; }
         #taskSub { font-size: 1.2rem; font-weight: 900; color: #fff; margin-top: 5px; text-align: center; }
+        
+        /* 次のメニュー表示用 */
+        #nextTaskInfo { font-size: 0.8rem; color: #555; margin-top: 10px; letter-spacing: 2px; }
 
-        .btn-group { display: flex; flex-wrap: wrap; gap: 12px; width: 88%; margin-top: 45px; justify-content: center; }
+        .btn-group { display: flex; flex-wrap: wrap; gap: 12px; width: 88%; margin-top: 30px; justify-content: center; }
         .btn-tr { flex: 1 1 40%; padding: 20px 0; background: rgba(0,0,0,0.9); border: 2px solid var(--accent); color: var(--accent); font-weight: 900; font-family: 'Orbitron', sans-serif; font-size: 0.8rem; }
         #skipBtn { flex: 1 1 100%; display: none; }
         .big-start-btn { width: 88%; padding: 25px; background: rgba(0,0,0,0.9); border: 2px solid var(--accent); color: var(--accent); font-weight: 900; letter-spacing: 5px; font-family: 'Orbitron', sans-serif; font-size: 1rem; }
@@ -80,6 +81,7 @@
 <div id="training-overlay" style="display:none;">
     <div id="taskMain">PHASE_STATUS</div>
     <div id="taskSub">LOADING...</div>
+    <div id="nextTaskInfo">→NEXT: ---</div>
     <div id="timerDisplay">00:00</div>
     <div class="btn-group">
         <button id="pauseBtn" class="btn-tr" onclick="togglePause()">PAUSE</button>
@@ -89,48 +91,57 @@
 </div>
 
 <script>
-// キー名を「EGO_VB_ACE」に統一して記録を復元
 let state = JSON.parse(localStorage.getItem("EGO_VB_ACE")) || { streak: 0, last: "" };
 let timer, hackInt, isPaused = false, sec = 0, tIdx = 0;
 
+// 指示通りの静音・スパイク強化メニュー
 const tasks = [
-    ["WARM_UP", "足首回し (左右)", 40],
-    ["WARM_UP", "その場軽ジャンプ S1", 20],
-    ["REST", "インターバル", 20],
-    ["WARM_UP", "その場軽ジャンプ S2", 20],
+    ["WARM_UP", "足首回し (左右)", 30],
     ["WARM_UP", "腕回し (前後)", 30],
-    ["JUMP_TRAIN", "スクワット S1", 36],
+    ["LOWER_BODY", "スクワット S1 (12回)", 40],
     ["REST", "インターバル", 40],
-    ["JUMP_TRAIN", "スクワット S2", 36],
+    ["LOWER_BODY", "スクワット S2 (12回)", 40],
     ["REST", "インターバル", 40],
-    ["JUMP_TRAIN", "スクワット S3", 36],
+    ["LOWER_BODY", "スクワット S3 (12回)", 40],
     ["REST", "インターバル", 40],
-    ["JUMP_TRAIN", "ジャンプスクワット S1", 20],
+    ["LOWER_BODY", "カーフレイズ S1 (20回)", 40],
+    ["REST", "インターバル", 30],
+    ["LOWER_BODY", "カーフレイズ S2 (20回)", 40],
+    ["REST", "インターバル", 30],
+    ["SPIKE_POWER", "チューブ/タオル引き S1 (12回)", 40],
+    ["REST", "インターバル", 40],
+    ["SPIKE_POWER", "チューブ/タオル引き S2 (12回)", 40],
+    ["REST", "インターバル", 40],
+    ["SPIKE_POWER", "チューブ/タオル引き S3 (12回)", 40],
+    ["REST", "インターバル", 40],
+    ["SPIKE_POWER", "パイクプッシュアップ S1 (8回)", 40],
     ["REST", "インターバル", 60],
-    ["JUMP_TRAIN", "ジャンプスクワット S2", 20],
+    ["SPIKE_POWER", "パイクプッシュアップ S2 (8回)", 40],
     ["REST", "インターバル", 60],
-    ["JUMP_TRAIN", "ジャンプスクワット S3", 20],
+    ["SPIKE_POWER", "パイクプッシュアップ S3 (8回)", 40],
     ["REST", "インターバル", 60],
-    ["JUMP_TRAIN", "カーフレイズ S1", 40],
+    ["SPIKE_POWER", "スパイク動作スロー S1 (10回)", 40],
     ["REST", "インターバル", 30],
-    ["JUMP_TRAIN", "カーフレイズ S2", 40],
+    ["SPIKE_POWER", "スパイク動作スロー S2 (10回)", 40],
     ["REST", "インターバル", 30],
-    ["CORE_POWER", "プランク S1", 25],
+    ["CORE", "プランク S1", 25],
     ["REST", "インターバル", 30],
-    ["CORE_POWER", "プランク S2", 25],
+    ["CORE", "プランク S2", 25],
     ["REST", "インターバル", 30],
-    ["CORE_POWER", "プランク S3", 25],
+    ["CORE", "プランク S3", 25],
     ["REST", "インターバル", 30],
-    ["CORE_POWER", "腕振りジャンプ S1", 25],
-    ["REST", "インターバル", 45],
-    ["CORE_POWER", "腕振りジャンプ S2", 25],
-    ["REST", "インターバル", 45],
-    ["CORE_POWER", "腕振りジャンプ S3", 25],
-    ["REST", "インターバル", 45],
-    ["COOL_DOWN", "太もも前ストレッチ", 40],
-    ["COOL_DOWN", "もも裏ストレッチ", 40],
-    ["COOL_DOWN", "ふくらはぎストレッチ", 40],
-    ["COOL_DOWN", "肩ストレッチ", 30]
+    ["CORE", "サイドプランク (左)", 20],
+    ["REST", "インターバル", 30],
+    ["CORE", "サイドプランク (右)", 20],
+    ["REST", "インターバル", 30],
+    ["CORE", "サイドプランク (左) S2", 20],
+    ["REST", "インターバル", 30],
+    ["CORE", "サイドプランク (右) S2", 20],
+    ["REST", "インターバル", 30],
+    ["COOL_DOWN", "太もも前ストレッチ", 20],
+    ["COOL_DOWN", "もも裏ストレッチ", 20],
+    ["COOL_DOWN", "ふくらはぎストレッチ", 20],
+    ["COOL_DOWN", "肩クロスストレッチ", 20]
 ];
 
 function save() { localStorage.setItem("EGO_VB_ACE", JSON.stringify(state)); }
@@ -153,11 +164,7 @@ function startTraining() {
     document.getElementById("training-overlay").style.display = "flex";
     tIdx = 0; isPaused = false;
     if(hackInt) clearInterval(hackInt);
-    // 100msごとに2つ生成
-    hackInt = setInterval(() => {
-        createDigit();
-        createDigit();
-    }, 100); 
+    hackInt = setInterval(() => { createDigit(); createDigit(); }, 100); 
     nextTask();
 }
 
@@ -165,25 +172,19 @@ function createDigit() {
     if(isPaused) return;
     const d = document.createElement("div");
     d.className = "hack-digit";
-    
     let val = "";
     const len = Math.floor(Math.random() * 3) + 1;
     for(let i=0; i<len; i++) val += Math.random() > 0.5 ? "1" : "0";
     d.innerText = val;
-    
     const x = Math.random() * 100;
     const y = Math.random() * 100;
-    d.style.left = x + "vw";
-    d.style.top = y + "vh";
-
+    d.style.left = x + "vw"; d.style.top = y + "vh";
     const dist = 400;
     const dirs = [[dist, 0], [-dist, 0], [0, dist], [0, -dist]];
     const picked = dirs[Math.floor(Math.random() * dirs.length)];
-    
     d.style.setProperty('--mx', picked[0] + "px");
     d.style.setProperty('--my', picked[1] + "px");
     d.style.animation = "hack-fly 1.7s ease-in-out forwards";
-    
     document.body.appendChild(d);
     setTimeout(() => d.remove(), 1700);
 }
@@ -193,6 +194,17 @@ function nextTask() {
     const current = tasks[tIdx];
     document.getElementById("taskMain").innerText = current[0];
     document.getElementById("taskSub").innerText = current[1];
+    
+    // 次のタスク表示
+    const nextInfo = document.getElementById("nextTaskInfo");
+    if(tIdx + 1 < tasks.length) {
+        const next = tasks[tIdx+1];
+        const m = Math.floor(next[2] / 60);
+        const s = next[2] % 60;
+        nextInfo.innerText = `→NEXT: ${next[1]} (${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')})`;
+    } else {
+        nextInfo.innerText = "→LAST PHASE";
+    }
     
     const skipBtn = document.getElementById("skipBtn");
     if(current[0].includes("REST")) {
@@ -205,9 +217,7 @@ function nextTask() {
     runTimer();
 }
 
-function skipTask() {
-    sec = 0;
-}
+function skipTask() { sec = 0; }
 
 function runTimer() {
     clearInterval(timer);
