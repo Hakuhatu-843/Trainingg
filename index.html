@@ -1127,6 +1127,7 @@ function isRest(idx) { return tasks[idx]?.name === 'REST'; }
 
 function startTraining() {
   currentIdx = 0; running = false;
+  requestWakeLock();
   goToScreen('training-screen');
   document.getElementById('tot-idx').textContent = tasks.length;
   loadTask(0);
@@ -1275,6 +1276,7 @@ function skipRest() {
 function resetToLobby() {
   if (timerId) { clearInterval(timerId); timerId = null; }
   running = false; currentIdx = 0;
+  releaseWakeLock();
   goToScreen('lobby-screen');
 }
 
@@ -1283,6 +1285,7 @@ function finishTraining() {
   running = false;
 
   const streak = updateStreak();
+  releaseWakeLock();
 
   // 完了フラッシュ（レジェンド=金）
   doFlash('legend');
@@ -1386,6 +1389,33 @@ function closeTaskList() {
   document.getElementById('hamburger-btn').classList.remove('open');
   document.getElementById('task-list-overlay').classList.remove('open');
 }
+
+
+// ═══════════════════════════════════════════════════
+// WAKE LOCK（トレーニング中に画面消灯を防ぐ）
+// ═══════════════════════════════════════════════════
+let wakeLock = null;
+
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return; // 非対応ブラウザはスルー
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+  } catch(e) {}
+}
+
+async function releaseWakeLock() {
+  if (wakeLock) {
+    try { await wakeLock.release(); } catch(e) {}
+    wakeLock = null;
+  }
+}
+
+// タブが非表示→再表示になったとき自動で再取得
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && running) {
+    await requestWakeLock();
+  }
+});
 
 // ═══════════════════════════════════════════════════
 // INIT
